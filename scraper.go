@@ -1,11 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -89,7 +89,7 @@ func (s scraper) scrape() {
 		return
 	}
 
-	postReq, err := http.NewRequest(http.MethodPost, viper.GetString("URL_API")+"/bonds", strings.NewReader(string(data)))
+	postReq, err := http.NewRequest(http.MethodPost, viper.GetString("URL_API")+"/bonds", bytes.NewReader(data))
 	if err != nil {
 		s.logger.Error("Failed to create HTTP request", "error", err.Error())
 		return
