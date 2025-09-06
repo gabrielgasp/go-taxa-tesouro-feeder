@@ -3,12 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/gabrielgasp/go-taxa-tesouro-feeder/model"
 	"github.com/imroc/req/v3"
 	"github.com/spf13/viper"
 )
@@ -69,23 +72,24 @@ func (s scraper) shouldScrape(loc *time.Location) bool {
 }
 
 func (s scraper) scrape() {
-	fakeChrome := req.ImpersonateChrome()
-	res := fakeChrome.Get(viper.GetString("URL_TESOURO")).Do()
-
-	if res.Response == nil {
-		s.logger.Error("Failed to fetch data", "error", res.Err)
-		return
-	}
-
-	if res.Response.StatusCode != 200 {
-		s.logger.Error("Failed to fetch data", "status code", res.Response.StatusCode)
-		return
-	}
-
-	defer res.Body.Close()
-	data, err := io.ReadAll(res.Body)
+	investData, err := s.fetchData(viper.GetString("INVEST_CSV_URL"))
 	if err != nil {
-		s.logger.Error("Failed to read response body", "error", err.Error())
+		s.logger.Error("Failed to fetch invest data", "error", err.Error())
+		return
+	}
+
+	redeemData, err := s.fetchData(viper.GetString("REDEEM_CSV_URL"))
+	if err != nil {
+		s.logger.Error("Failed to fetch redeem data", "error", err.Error())
+		return
+	}
+
+	data, err := json.Marshal(model.SaveBondsRequest{
+		InvestData: investData,
+		RedeemData: redeemData,
+	})
+	if err != nil {
+		s.logger.Error("Failed to marshal data", "error", err.Error())
 		return
 	}
 
@@ -109,4 +113,24 @@ func (s scraper) scrape() {
 		s.logger.Error("Failed to send data", "status code", postRes.StatusCode)
 		return
 	}
+}
+
+func (s scraper) fetchData(url string) ([]byte, error) {
+	fmt.Println("Fetching data from:", url)
+	res, err := req.ImpersonateChrome().R().Get(url)
+	if err != nil || res.Response == nil {
+		return nil, fmt.Errorf("failed to fetch data: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status code %d", res.StatusCode)
+	}
+
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read data: %w", err)
+	}
+
+	return data, nil
 }
