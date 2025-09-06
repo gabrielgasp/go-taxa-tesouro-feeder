@@ -116,7 +116,6 @@ func (s scraper) scrape() {
 }
 
 func (s scraper) fetchData(url string) ([]byte, error) {
-	fmt.Println("Fetching data from:", url)
 	res, err := req.ImpersonateChrome().R().Get(url)
 	if err != nil || res.Response == nil {
 		return nil, fmt.Errorf("failed to fetch data: %w", err)
